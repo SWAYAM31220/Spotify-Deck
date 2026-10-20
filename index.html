@@ -10,8 +10,10 @@
 :root{--bg:#111318;--fg:#fff;--line:rgba(255,255,255,.14);--gp:48px}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:'Bricolage Grotesque',system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
-#bg{position:fixed;inset:0;width:100%;height:100%;display:block}
-#shade{position:fixed;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.2),rgba(0,0,0,.4))}
+#bg{position:fixed;inset:0;overflow:hidden;background:#1b1d24}
+#bg .bl{position:absolute;inset:0;opacity:0;transition:opacity 1s ease}
+#bg .bl.in{opacity:1}
+#shade{position:fixed;inset:0;background:rgba(0,0,0,.06)}
 #app{position:relative;height:100%;display:flex;align-items:center;gap:5vw;padding:max(24px,env(safe-area-inset-top)) max(5vw,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(5vw,env(safe-area-inset-left))}
 #left{flex:0 0 min(34vw,64vh);display:flex;flex-direction:column;gap:14px}
 
@@ -65,7 +67,7 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 </style>
 </head>
 <body>
-<canvas id="bg" width="32" height="32"></canvas><div id="shade"></div>
+<div id="bg"></div><div id="shade"></div>
 <div id="app">
 <section id="left">
 <div id="artwrap">
@@ -175,10 +177,68 @@ $('#lyrics').scrollTop = 0;
 $('#track').style.transform = 'translate3d(0,' + center() + 'px,0)';
 }
 
-// small image, drawn to a 32px canvas and upscaled = free blur
+// background: dominant colour from the cover as a solid base + a second hue glowing from the top-right
+let bgTok = 0;
+function hsl(r, g, b) {
+r /= 255; g /= 255; b /= 255;
+const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+let h = 0, sat = 0;
+if (d) {
+sat = d / (1 - Math.abs(2 * l - 1));
+h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+h = (h * 60 + 360) % 360;
+}
+return [h, sat, l];
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function palette(im) {
+const c = document.createElement('canvas'); c.width = c.height = 16;
+const x = c.getContext('2d', { willReadFrequently: true });
+x.drawImage(im, 0, 0, 16, 16);
+const px = x.getImageData(0, 0, 16, 16).data, bins = {};
+for (let i = 0; i < px.length; i += 4) {
+const [h, sat, l] = hsl(px[i], px[i + 1], px[i + 2]);
+if (l < .06 || l > .94) continue;
+const w = (sat * .8 + .15) * (1 - Math.abs(l - .45));
+const k = sat < .12 ? 'g' : Math.floor(h / 30);
+const o = bins[k] || (bins[k] = { w: 0, x: 0, y: 0, s: 0, l: 0 });
+const rad = h * Math.PI / 180;
+o.w += w; o.x += Math.cos(rad) * w; o.y += Math.sin(rad) * w; o.s += sat * w; o.l += l * w;
+}
+const list = Object.values(bins).filter(o => o.w > 0).map(o => ({ w: o.w, h: (Math.atan2(o.y, o.x) * 180 / Math.PI + 360) % 360, s: o.s / o.w, l: o.l / o.w })).sort((a, b) => b.w - a.w);
+if (!list.length) return null;
+const A = list[0];
+const dist = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+const B = list.find(o => dist(o.h, A.h) >= 40 && o.s > .15) || { h: (A.h + 35) % 360, s: A.s, l: A.l };
+return { A, B };
+}
+function paint(css) {
+const el = document.createElement('div');
+el.className = 'bl'; el.style.background = css;
+const box = $('#bg');
+box.appendChild(el);
+requestAnimationFrame(() => requestAnimationFrame(() => {
+el.classList.add('in');
+setTimeout(() => { while (box.children.length > 1) box.removeChild(box.firstChild); }, 1100);
+}));
+}
 function bg(url) {
+const my = ++bgTok;
+const fallback = () => { if (my === bgTok) paint('radial-gradient(60% 70% at 88% 6%,#3a4466 0%,transparent 70%),#1b1d24'); };
 const im = new Image();
-im.onload = () => { const c = $('#bg').getContext('2d'); c.filter = 'saturate(1.6) brightness(.6)'; c.drawImage(im, 0, 0, 32, 32); };
+im.crossOrigin = 'anonymous';
+im.onload = () => {
+if (my !== bgTok) return;
+let P = null;
+try { P = palette(im); } catch (e) {}
+if (!P) return fallback();
+const { A, B } = P;
+const base = 'hsl(' + A.h.toFixed(0) + ',' + (clamp(A.s, .35, .85) * 100).toFixed(0) + '%,' + (clamp(A.l * .7, .14, .3) * 100).toFixed(0) + '%)';
+const glow = 'hsl(' + B.h.toFixed(0) + ',' + (clamp(B.s, .4, .9) * 100).toFixed(0) + '%,' + (clamp(B.l, .3, .48) * 100).toFixed(0) + '%)';
+const deep = 'hsl(' + A.h.toFixed(0) + ',' + (clamp(A.s, .3, .8) * 100).toFixed(0) + '%,9%)';
+paint('radial-gradient(60% 70% at 88% 6%,' + glow + ' 0%,transparent 70%),radial-gradient(70% 60% at 6% 100%,' + deep + ' 0%,transparent 70%),' + base);
+};
+im.onerror = fallback;
 im.src = url;
 }
 
