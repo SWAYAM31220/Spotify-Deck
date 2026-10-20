@@ -7,23 +7,38 @@
 <title>Lyrics Deck</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#111318;--fg:#fff;--line:rgba(255,255,255,.14)}
+:root{--bg:#111318;--fg:#fff;--line:rgba(255,255,255,.14);--gp:48px}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:'Bricolage Grotesque',system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
 #bg{position:fixed;inset:-15%;background:center/cover;filter:blur(80px) saturate(1.6) brightness(.55)}
 #shade{position:fixed;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.15),rgba(0,0,0,.35))}
 #app{position:relative;height:100%;display:flex;align-items:center;gap:5vw;padding:max(24px,env(safe-area-inset-top)) max(5vw,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(5vw,env(safe-area-inset-left))}
 #left{flex:0 0 min(34vw,64vh);display:flex;flex-direction:column;gap:14px}
-#art{width:100%;aspect-ratio:1;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.08);box-shadow:0 18px 50px rgba(0,0,0,.45)}
+
+/* album art + tap-to-toggle controls */
+#artwrap{position:relative;width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.08);box-shadow:0 18px 50px rgba(0,0,0,.45);container-type:inline-size;cursor:pointer}
+#art{display:block;width:100%;height:100%;object-fit:cover}
+#ctrls{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5cqw;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s}
+#artwrap.show #ctrls{opacity:1;pointer-events:auto}
+.cb{width:15cqw;height:15cqw;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.16);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:grid;place-items:center;transition:transform .12s,background .12s}
+.cb:active{transform:scale(.9);background:rgba(255,255,255,.3)}
+.cb svg{width:48%;height:48%;fill:#fff}
+.cb.big{width:21cqw;height:21cqw;background:rgba(255,255,255,.92)}
+.cb.big svg{fill:#111318;width:46%;height:46%}
+.cb.big:active{background:#fff}
+
 #title{font-weight:800;font-size:clamp(18px,2.2vw,26px);line-height:1.15}
 #sub{font-weight:500;font-size:clamp(13px,1.5vw,17px);opacity:.65;margin-top:3px}
 #bar{height:4px;border-radius:2px;background:rgba(255,255,255,.22);overflow:hidden}
 #fill{height:100%;width:0;background:#fff;border-radius:2px}
 #times{display:flex;justify-content:space-between;font-size:12px;opacity:.6;font-variant-numeric:tabular-nums;margin-top:-6px}
-#lyrics{flex:1;height:100%;overflow-y:auto;scrollbar-width:none;padding:42vh 0;mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);-webkit-mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent)}
+
+/* extra side padding (cancelled by negative margin) so the glow is never clipped by the scroller */
+#lyrics{flex:1;height:100%;overflow-y:auto;scrollbar-width:none;padding:42vh var(--gp);margin:0 calc(var(--gp)*-1);mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);-webkit-mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent)}
 #lyrics::-webkit-scrollbar{display:none}
-.l{font-size:clamp(24px,3.7vw,46px);font-weight:800;line-height:1.2;margin:0 0 .5em;color:#fff;opacity:.4;transition:opacity .4s,filter .4s,text-shadow .4s;overflow-wrap:anywhere}
-.l.on{opacity:1;text-shadow:0 0 28px rgba(255,255,255,.55)}
+.l{position:relative;font-size:clamp(24px,3.7vw,46px);font-weight:800;line-height:1.2;margin:0 0 .26em;padding:.12em 0;color:#fff;opacity:.4;transition:opacity .4s,filter .4s,text-shadow .5s;overflow-wrap:anywhere}
+/* stacked, fading shadows = soft falloff, no hard edge; z-index keeps it above blurred neighbours */
+.l.on{opacity:1;z-index:1;text-shadow:0 0 10px rgba(255,255,255,.35),0 0 26px rgba(255,255,255,.25),0 0 56px rgba(255,255,255,.12)}
 .msg{font-size:22px;font-weight:500;opacity:.7}
 #setup{position:fixed;inset:0;background:var(--bg);display:none;overflow:auto;padding:28px 22px;z-index:5}
 #setup>div{max-width:520px;margin:0 auto}
@@ -34,186 +49,222 @@ input{width:100%;font:inherit;padding:12px 14px;margin:14px 0;border-radius:8px;
 button{font:inherit;font-weight:700;font-size:15px;color:#fff;background:rgba(255,255,255,.14);border:1px solid var(--line);border-radius:999px;padding:11px 20px;cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2px}
 @media (max-aspect-ratio:1/1){
-  #app{flex-direction:column;gap:12px;align-items:stretch;padding-top:max(16px,env(safe-area-inset-top))}
-  #left{flex:0 0 auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
-  #art{width:min(22vh,34vw)}
-  #meta{flex:1;min-width:0}
-  #bar,#times{flex:0 0 100%}
-  #lyrics{padding:30vh 0}
-  .l{font-size:clamp(24px,7vw,38px)}
+#app{flex-direction:column;gap:12px;align-items:stretch;padding-top:max(16px,env(safe-area-inset-top))}
+#left{flex:0 0 auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
+#artwrap{width:min(22vh,34vw)}
+#meta{flex:1;min-width:0}
+#bar,#times{flex:0 0 100%}
+#lyrics{padding:30vh var(--gp)}
+.l{font-size:clamp(24px,7vw,38px)}
 }
-@media (prefers-reduced-motion:reduce){.l{transition:none}}
+@media (prefers-reduced-motion:reduce){.l,#ctrls{transition:none}}
 </style>
 </head>
 <body>
 <div id="bg"></div><div id="shade"></div>
 <div id="app">
-  <section id="left">
-    <img id="art" alt="">
-    <div id="meta"><div id="title">Lyrics Deck</div><div id="sub">Waiting for playback</div></div>
-    <div id="bar"><div id="fill"></div></div>
-    <div id="times"><span id="tc">0:00</span><span id="td">0:00</span></div>
-  </section>
-  <main id="lyrics"><p class="msg">Play a song on Spotify from any device.</p></main>
+<section id="left">
+<div id="artwrap">
+<img id="art" alt="">
+<div id="ctrls">
+<button class="cb" id="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg></button>
+<button class="cb big" id="pp" aria-label="Play / pause"></button>
+<button class="cb" id="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg></button>
 </div>
-
+</div>
+<div id="meta"><div id="title">Lyrics Deck</div><div id="sub">Waiting for playback</div></div>
+<div id="bar"><div id="fill"></div></div>
+<div id="times"><span id="tc">0:00</span><span id="td">0:00</span></div>
+</section>
+<main id="lyrics"><p class="msg">Play a song on Spotify from any device.</p></main>
+</div>
 <div id="setup"><div>
-  <h1>Lyrics Deck</h1>
-  <p>One-time setup:</p>
-  <ol>
-    <li>Open the Spotify Developer Dashboard and create an app that uses the Web API.</li>
-    <li>Add this as a Redirect URI: <code id="ru"></code></li>
-    <li>Paste the app’s Client ID below.</li>
-  </ol>
-  <input id="cid" placeholder="Client ID" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <button id="go">Connect Spotify</button>
+<h1>Lyrics Deck</h1>
+<p>One-time setup:</p>
+<ol>
+<li>Open the Spotify Developer Dashboard and create an app that uses the Web API.</li>
+<li>Add this as a Redirect URI: <code id="ru"></code></li>
+<li>Paste the app’s Client ID below.</li>
+</ol>
+<input id="cid" placeholder="Client ID" autocomplete="off" autocapitalize="off" spellcheck="false">
+<button id="go">Connect Spotify</button>
 </div></div>
-
 <script>
 const $ = s => document.querySelector(s);
 const LS = localStorage;
 const REDIRECT = location.origin + location.pathname;
-const SCOPE = 'user-read-currently-playing user-read-playback-state';
+const SCOPE = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
+const SCOPE_V = '2'; // bump when SCOPE changes, forces one re-login
 let tok = null;
 try { tok = JSON.parse(LS.getItem('tok') || 'null'); } catch (e) {}
-
+if (LS.getItem('scv') !== SCOPE_V) tok = null; // old token lacks playback-control permission
 let cur = null, base = 0, at = 0, playing = false, dur = 1, lines = [], synced = false, idx = -1;
+
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+function icon() { $('#pp').innerHTML = playing ? ICON_PAUSE : ICON_PLAY; }
+icon();
 
 const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const fmt = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const pos = () => base + (playing ? performance.now() - at : 0);
 
 async function login() {
-  const id = $('#cid').value.trim();
-  if (!id) return;
-  LS.setItem('cid', id);
-  const v = b64(crypto.getRandomValues(new Uint8Array(48)));
-  LS.setItem('ver', v);
-  const ch = b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)));
-  location = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
-    client_id: id, response_type: 'code', redirect_uri: REDIRECT, scope: SCOPE,
-    code_challenge_method: 'S256', code_challenge: ch
-  });
+const id = $('#cid').value.trim();
+if (!id) return;
+LS.setItem('cid', id);
+const v = b64(crypto.getRandomValues(new Uint8Array(48)));
+LS.setItem('ver', v);
+const ch = b64(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v)));
+location = 'https://accounts.spotify.com/authorize?' + new URLSearchParams({
+client_id: id, response_type: 'code', redirect_uri: REDIRECT, scope: SCOPE,
+code_challenge_method: 'S256', code_challenge: ch
+});
 }
 
 async function token(body) {
-  const r = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: LS.getItem('cid'), ...body })
-  });
-  if (!r.ok) throw 0;
-  const j = await r.json();
-  tok = { a: j.access_token, r: j.refresh_token || (tok && tok.r), e: Date.now() + j.expires_in * 1000 - 30000 };
-  LS.setItem('tok', JSON.stringify(tok));
+const r = await fetch('https://accounts.spotify.com/api/token', {
+method: 'POST',
+headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+body: new URLSearchParams({ client_id: LS.getItem('cid'), ...body })
+});
+if (!r.ok) throw 0;
+const j = await r.json();
+tok = { a: j.access_token, r: j.refresh_token || (tok && tok.r), e: Date.now() + j.expires_in * 1000 - 30000 };
+LS.setItem('tok', JSON.stringify(tok));
 }
 
-async function api(path) {
-  if (Date.now() > tok.e) await token({ grant_type: 'refresh_token', refresh_token: tok.r });
-  const r = await fetch('https://api.spotify.com/v1/me/player' + path, { headers: { Authorization: 'Bearer ' + tok.a } });
-  return r.status === 200 ? r.json() : null;
+// GET returns parsed JSON (or null); other methods return the HTTP status
+async function api(path, method = 'GET') {
+if (Date.now() > tok.e) await token({ grant_type: 'refresh_token', refresh_token: tok.r });
+const r = await fetch('https://api.spotify.com/v1/me/player' + path, { method, headers: { Authorization: 'Bearer ' + tok.a } });
+if (method !== 'GET') return r.status;
+return r.status === 200 ? r.json() : null;
 }
 
 function msg(t) {
-  const p = document.createElement('p');
-  p.className = 'msg'; p.textContent = t;
-  $('#lyrics').replaceChildren(p);
-  lines = []; synced = false;
+const p = document.createElement('p');
+p.className = 'msg'; p.textContent = t;
+$('#lyrics').replaceChildren(p);
+lines = []; synced = false;
 }
 
 function parse(s) {
-  return s.split('\n').map(l => {
-    const m = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);
-    return m ? { t: (+m[1] * 60 + +m[2]) * 1000, s: m[3] || '♪' } : null;
-  }).filter(Boolean);
+return s.split('\n').map(l => {
+const m = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/);
+return m ? { t: (+m[1] * 60 + +m[2]) * 1000, s: m[3] || '♪' } : null;
+}).filter(Boolean);
 }
 
 function draw(arr, isSynced) {
-  lines = arr; synced = isSynced; idx = -1;
-  $('#lyrics').replaceChildren(...arr.map(x => {
-    const p = document.createElement('p');
-    p.className = 'l'; p.textContent = x.s;
-    if (!isSynced) p.style.opacity = 1;
-    return p;
-  }));
-  $('#lyrics').scrollTop = 0;
+lines = arr; synced = isSynced; idx = -1;
+$('#lyrics').replaceChildren(...arr.map(x => {
+const p = document.createElement('p');
+p.className = 'l'; p.textContent = x.s;
+if (!isSynced) p.style.opacity = 1;
+return p;
+}));
+$('#lyrics').scrollTop = 0;
 }
 
 async function setTrack(t) {
-  const img = t.album.images[0] && t.album.images[0].url;
-  $('#title').textContent = t.name;
-  $('#sub').textContent = (t.album.release_date || '').slice(0, 4) + ' · ' + t.artists.map(a => a.name).join(', ');
-  if (img) { $('#art').src = img; $('#bg').style.backgroundImage = 'url(' + img + ')'; }
-  msg('Finding lyrics…');
-  const q = { track_name: t.name, artist_name: t.artists[0].name };
-  let j = null;
-  try {
-    let r = await fetch('https://lrclib.net/api/get?' + new URLSearchParams({ ...q, album_name: t.album.name, duration: Math.round(t.duration_ms / 1000) }));
-    if (r.ok) j = await r.json();
-    else {
-      r = await fetch('https://lrclib.net/api/search?' + new URLSearchParams(q));
-      const a = r.ok ? await r.json() : [];
-      j = a.find(x => x.syncedLyrics) || a[0] || null;
-    }
-  } catch (e) {}
-  if (cur !== t.id) return;
-  if (j && j.syncedLyrics) draw(parse(j.syncedLyrics), true);
-  else if (j && j.plainLyrics) draw(j.plainLyrics.split('\n').map(s => ({ t: 0, s: s || ' ' })), false);
-  else msg('No lyrics found for this track.');
+const img = t.album.images[0] && t.album.images[0].url;
+$('#title').textContent = t.name;
+$('#sub').textContent = (t.album.release_date || '').slice(0, 4) + ' · ' + t.artists.map(a => a.name).join(', ');
+if (img) { $('#art').src = img; $('#bg').style.backgroundImage = 'url(' + img + ')'; }
+msg('Finding lyrics…');
+const q = { track_name: t.name, artist_name: t.artists[0].name };
+let j = null;
+try {
+let r = await fetch('https://lrclib.net/api/get?' + new URLSearchParams({ ...q, album_name: t.album.name, duration: Math.round(t.duration_ms / 1000) }));
+if (r.ok) j = await r.json();
+else {
+r = await fetch('https://lrclib.net/api/search?' + new URLSearchParams(q));
+const a = r.ok ? await r.json() : [];
+j = a.find(x => x.syncedLyrics) || a[0] || null;
+}
+} catch (e) {}
+if (cur !== t.id) return;
+if (j && j.syncedLyrics) draw(parse(j.syncedLyrics), true);
+else if (j && j.plainLyrics) draw(j.plainLyrics.split('\n').map(s => ({ t: 0, s: s || ' ' })), false);
+else msg('No lyrics found for this track.');
 }
 
 async function poll() {
-  try {
-    const d = await api('/currently-playing');
-    if (!d || !d.item || !d.item.artists) return;
-    base = d.progress_ms; at = performance.now(); playing = d.is_playing; dur = d.item.duration_ms;
-    $('#td').textContent = fmt(dur);
-    if (d.item.id !== cur) { cur = d.item.id; setTrack(d.item); }
-  } catch (e) {
-    if (e === 0) { LS.removeItem('tok'); location.reload(); }
-  }
+try {
+const d = await api('/currently-playing');
+if (!d || !d.item || !d.item.artists) return;
+base = d.progress_ms; at = performance.now(); playing = d.is_playing; dur = d.item.duration_ms;
+icon();
+$('#td').textContent = fmt(dur);
+if (d.item.id !== cur) { cur = d.item.id; setTrack(d.item); }
+} catch (e) {
+if (e === 0) { LS.removeItem('tok'); location.reload(); }
+}
+}
+
+// playback controls (needs Spotify Premium)
+async function ctl(act) {
+try {
+if (act === 'pp') {
+base = pos(); at = performance.now(); playing = !playing; icon(); // instant feedback
+await api(playing ? '/play' : '/pause', 'PUT');
+} else {
+await api(act === 'next' ? '/next' : '/previous', 'POST');
+}
+} catch (e) {}
+setTimeout(poll, 500);
+setTimeout(poll, 1500);
 }
 
 function tick() {
-  const p = base + (playing ? performance.now() - at : 0);
-  $('#fill').style.width = Math.min(100, p / dur * 100) + '%';
-  $('#tc').textContent = fmt(p);
-  if (!synced || !lines.length) return;
-  let i = -1;
-  for (let k = 0; k < lines.length; k++) { if (lines[k].t <= p) i = k; else break; }
-  if (i === idx) return;
-  idx = i;
-  const els = $('#lyrics').children;
-  for (let k = 0; k < els.length; k++) {
-    const d = Math.abs(k - i);
-    els[k].classList.toggle('on', d === 0);
-    els[k].style.filter = d === 0 || i < 0 ? 'none' : 'blur(' + Math.min(d, 5) * 0.8 + 'px)';
-  }
-  if (els[i]) els[i].scrollIntoView({ block: 'center', behavior: 'smooth' });
+const p = pos();
+$('#fill').style.width = Math.min(100, p / dur * 100) + '%';
+$('#tc').textContent = fmt(p);
+if (!synced || !lines.length) return;
+let i = -1;
+for (let k = 0; k < lines.length; k++) { if (lines[k].t <= p) i = k; else break; }
+if (i === idx) return;
+idx = i;
+const els = $('#lyrics').children;
+for (let k = 0; k < els.length; k++) {
+const d = Math.abs(k - i);
+els[k].classList.toggle('on', d === 0);
+els[k].style.filter = d === 0 || i < 0 ? 'none' : 'blur(' + Math.min(d, 5) * 0.8 + 'px)';
+}
+if (els[i]) els[i].scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 async function wake() {
-  try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch (e) {}
+try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 
 function start() {
-  poll(); setInterval(poll, 4000); setInterval(tick, 150);
-  document.addEventListener('click', () => {
-    wake();
-    if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
-  });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+poll(); setInterval(poll, 4000); setInterval(tick, 150);
+// tap album art: show controls, tap again: hide
+$('#artwrap').addEventListener('click', () => $('#artwrap').classList.toggle('show'));
+[['#prev', 'prev'], ['#pp', 'pp'], ['#next', 'next']].forEach(([s, a]) =>
+$(s).addEventListener('click', e => { e.stopPropagation(); ctl(a); }));
+document.addEventListener('click', () => {
+wake();
+if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
 }
 
 async function boot() {
-  $('#ru').textContent = REDIRECT;
-  $('#go').onclick = login;
-  const code = new URLSearchParams(location.search).get('code');
-  if (code) {
-    try { await token({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: LS.getItem('ver') }); } catch (e) {}
-    history.replaceState({}, '', REDIRECT);
-  }
-  if (!tok) { $('#cid').value = LS.getItem('cid') || ''; $('#setup').style.display = 'block'; return; }
-  start();
+$('#ru').textContent = REDIRECT;
+$('#go').onclick = login;
+const code = new URLSearchParams(location.search).get('code');
+if (code) {
+try {
+await token({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, code_verifier: LS.getItem('ver') });
+LS.setItem('scv', SCOPE_V);
+} catch (e) {}
+history.replaceState({}, '', REDIRECT);
+}
+if (!tok) { $('#cid').value = LS.getItem('cid') || ''; $('#setup').style.display = 'block'; return; }
+start();
 }
 boot();
 </script>
