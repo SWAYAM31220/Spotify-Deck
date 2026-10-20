@@ -10,8 +10,8 @@
 :root{--bg:#111318;--fg:#fff;--line:rgba(255,255,255,.14);--gp:48px}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:'Bricolage Grotesque',system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
-#bg{position:fixed;inset:-15%;background:center/cover;filter:blur(80px) saturate(1.6) brightness(.55)}
-#shade{position:fixed;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.15),rgba(0,0,0,.35))}
+#bg{position:fixed;inset:0;width:100%;height:100%;display:block}
+#shade{position:fixed;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.2),rgba(0,0,0,.4))}
 #app{position:relative;height:100%;display:flex;align-items:center;gap:5vw;padding:max(24px,env(safe-area-inset-top)) max(5vw,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(5vw,env(safe-area-inset-left))}
 #left{flex:0 0 min(34vw,64vh);display:flex;flex-direction:column;gap:14px}
 
@@ -20,7 +20,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 #art{display:block;width:100%;height:100%;object-fit:cover}
 #ctrls{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5cqw;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s}
 #artwrap.show #ctrls{opacity:1;pointer-events:auto}
-.cb{width:15cqw;height:15cqw;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.16);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:grid;place-items:center;transition:transform .12s,background .12s}
+.cb{width:15cqw;height:15cqw;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;transition:transform .12s,background .12s}
 .cb:active{transform:scale(.9);background:rgba(255,255,255,.3)}
 .cb svg{width:48%;height:48%;fill:#fff}
 .cb.big{width:21cqw;height:21cqw;background:rgba(255,255,255,.92)}
@@ -30,15 +30,19 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 #title{font-weight:800;font-size:clamp(18px,2.2vw,26px);line-height:1.15}
 #sub{font-weight:500;font-size:clamp(13px,1.5vw,17px);opacity:.65;margin-top:3px}
 #bar{height:4px;border-radius:2px;background:rgba(255,255,255,.22);overflow:hidden}
-#fill{height:100%;width:0;background:#fff;border-radius:2px}
+#fill{height:100%;width:100%;background:#fff;border-radius:2px;transform:scaleX(0);transform-origin:left}
 #times{display:flex;justify-content:space-between;font-size:12px;opacity:.6;font-variant-numeric:tabular-nums;margin-top:-6px}
 
-/* extra side padding (cancelled by negative margin) so the glow is never clipped by the scroller */
-#lyrics{flex:1;height:100%;overflow-y:auto;scrollbar-width:none;padding:42vh var(--gp);margin:0 calc(var(--gp)*-1);mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);-webkit-mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent)}
+/* synced lyrics move with a GPU transform (no layout, no scroll repaint); plain lyrics use normal scroll */
+#lyrics{flex:1;height:100%;overflow:hidden;padding:0 var(--gp);margin:0 calc(var(--gp)*-1);mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent);-webkit-mask-image:linear-gradient(transparent,#000 18%,#000 82%,transparent)}
+#lyrics.scroll{overflow-y:auto;scrollbar-width:none}
 #lyrics::-webkit-scrollbar{display:none}
-.l{position:relative;font-size:clamp(24px,3.7vw,46px);font-weight:800;line-height:1.2;margin:0 0 .26em;padding:.12em 0;color:#fff;opacity:.4;transition:opacity .4s,filter .4s,text-shadow .5s;overflow-wrap:anywhere}
-/* stacked, fading shadows = soft falloff, no hard edge; z-index keeps it above blurred neighbours */
-.l.on{opacity:1;z-index:1;text-shadow:0 0 10px rgba(255,255,255,.35),0 0 26px rgba(255,255,255,.25),0 0 56px rgba(255,255,255,.12)}
+#track{position:relative;transition:transform .7s cubic-bezier(.22,.8,.2,1);will-change:transform}
+#lyrics.scroll #track{padding:42vh 0;transform:none!important;transition:none;will-change:auto}
+.l{position:relative;font-size:clamp(24px,3.7vw,46px);font-weight:800;line-height:1.2;margin:0 0 .26em;padding:.12em 0;color:#fff;opacity:.3;transition:opacity .45s;overflow-wrap:anywhere}
+/* glow lives on a pseudo-element and only its opacity animates (cheap, no repaint) */
+.l::after{content:attr(data-t);position:absolute;left:0;right:0;top:.12em;color:transparent;pointer-events:none;opacity:0;transition:opacity .45s;text-shadow:0 0 10px rgba(255,255,255,.35),0 0 26px rgba(255,255,255,.25),0 0 56px rgba(255,255,255,.12)}
+.l.on::after{opacity:1}
 .msg{font-size:22px;font-weight:500;opacity:.7}
 #setup{position:fixed;inset:0;background:var(--bg);display:none;overflow:auto;padding:28px 22px;z-index:5}
 #setup>div{max-width:520px;margin:0 auto}
@@ -54,14 +58,14 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 #artwrap{width:min(22vh,34vw)}
 #meta{flex:1;min-width:0}
 #bar,#times{flex:0 0 100%}
-#lyrics{padding:30vh var(--gp)}
+#lyrics.scroll #track{padding:30vh 0}
 .l{font-size:clamp(24px,7vw,38px)}
 }
 @media (prefers-reduced-motion:reduce){.l,#ctrls{transition:none}}
 </style>
 </head>
 <body>
-<div id="bg"></div><div id="shade"></div>
+<canvas id="bg" width="32" height="32"></canvas><div id="shade"></div>
 <div id="app">
 <section id="left">
 <div id="artwrap">
@@ -76,7 +80,7 @@ button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2
 <div id="bar"><div id="fill"></div></div>
 <div id="times"><span id="tc">0:00</span><span id="td">0:00</span></div>
 </section>
-<main id="lyrics"><p class="msg">Play a song on Spotify from any device.</p></main>
+<main id="lyrics" class="scroll"><div id="track"><p class="msg">Play a song on Spotify from any device.</p></div></main>
 </div>
 <div id="setup"><div>
 <h1>Lyrics Deck</h1>
@@ -145,7 +149,8 @@ return r.status === 200 ? r.json() : null;
 function msg(t) {
 const p = document.createElement('p');
 p.className = 'msg'; p.textContent = t;
-$('#lyrics').replaceChildren(p);
+$('#lyrics').classList.add('scroll');
+$('#track').replaceChildren(p);
 lines = []; synced = false;
 }
 
@@ -156,22 +161,32 @@ return m ? { t: (+m[1] * 60 + +m[2]) * 1000, s: m[3] || '♪' } : null;
 }).filter(Boolean);
 }
 
+function center() { return $('#lyrics').clientHeight * .4; }
 function draw(arr, isSynced) {
 lines = arr; synced = isSynced; idx = -1;
-$('#lyrics').replaceChildren(...arr.map(x => {
+$('#lyrics').classList.toggle('scroll', !isSynced);
+$('#track').replaceChildren(...arr.map(x => {
 const p = document.createElement('p');
-p.className = 'l'; p.textContent = x.s;
-if (!isSynced) p.style.opacity = 1;
+p.className = 'l'; p.textContent = x.s; p.dataset.t = x.s;
+p.style.opacity = isSynced ? '' : 1;
 return p;
 }));
 $('#lyrics').scrollTop = 0;
+$('#track').style.transform = 'translate3d(0,' + center() + 'px,0)';
+}
+
+// small image, drawn to a 32px canvas and upscaled = free blur
+function bg(url) {
+const im = new Image();
+im.onload = () => { const c = $('#bg').getContext('2d'); c.filter = 'saturate(1.6) brightness(.6)'; c.drawImage(im, 0, 0, 32, 32); };
+im.src = url;
 }
 
 async function setTrack(t) {
 const img = t.album.images[0] && t.album.images[0].url;
 $('#title').textContent = t.name;
 $('#sub').textContent = (t.album.release_date || '').slice(0, 4) + ' · ' + t.artists.map(a => a.name).join(', ');
-if (img) { $('#art').src = img; $('#bg').style.backgroundImage = 'url(' + img + ')'; }
+if (img) { $('#art').src = img; bg(t.album.images[t.album.images.length - 1].url); }
 msg('Finding lyrics…');
 const q = { track_name: t.name, artist_name: t.artists[0].name };
 let j = null;
@@ -217,22 +232,26 @@ setTimeout(poll, 500);
 setTimeout(poll, 1500);
 }
 
+let lastSec = -1;
+const OP = [1, .55, .38, .28];
 function tick() {
 const p = pos();
-$('#fill').style.width = Math.min(100, p / dur * 100) + '%';
-$('#tc').textContent = fmt(p);
+$('#fill').style.transform = 'scaleX(' + Math.min(1, p / dur) + ')';
+const sec = Math.floor(p / 1000);
+if (sec !== lastSec) { lastSec = sec; $('#tc').textContent = fmt(p); }
 if (!synced || !lines.length) return;
 let i = -1;
 for (let k = 0; k < lines.length; k++) { if (lines[k].t <= p) i = k; else break; }
 if (i === idx) return;
 idx = i;
-const els = $('#lyrics').children;
+const els = $('#track').children;
 for (let k = 0; k < els.length; k++) {
 const d = Math.abs(k - i);
 els[k].classList.toggle('on', d === 0);
-els[k].style.filter = d === 0 || i < 0 ? 'none' : 'blur(' + Math.min(d, 5) * 0.8 + 'px)';
+els[k].style.opacity = i < 0 ? OP[2] : OP[Math.min(d, 3)];
 }
-if (els[i]) els[i].scrollIntoView({ block: 'center', behavior: 'smooth' });
+const y = i < 0 ? center() : $('#lyrics').clientHeight / 2 - (els[i].offsetTop + els[i].offsetHeight / 2);
+$('#track').style.transform = 'translate3d(0,' + y + 'px,0)';
 }
 
 async function wake() {
@@ -240,7 +259,8 @@ try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catc
 }
 
 function start() {
-poll(); setInterval(poll, 4000); setInterval(tick, 150);
+poll(); setInterval(poll, 4000); setInterval(tick, 200);
+window.addEventListener('resize', () => { idx = -2; });
 // tap album art: show controls, tap again: hide
 $('#artwrap').addEventListener('click', () => $('#artwrap').classList.toggle('show'));
 [['#prev', 'prev'], ['#pp', 'pp'], ['#next', 'next']].forEach(([s, a]) =>
